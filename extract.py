@@ -41,6 +41,18 @@ def is_float(txt):
     except ValueError:
         return False
 
+def is_bool(txt):
+    if txt.strip().lower() in ['no', 'yes']:
+        return True
+    else:
+        return False
+
+def to_bool(txt):
+    if txt.strip().lower() == 'yes':
+        return 1
+    else:
+        return 0
+
 items = {}
 with requests.Session() as s:
     s.get ( 'https://www.nibeuplink.com/Welcome' )
@@ -70,8 +82,10 @@ for key, value in items.items():
             fvalue = float(value[:-(len(unit))])
     if fvalue is None and is_float(value):
         fvalue = float(value)
+    if fvalue is None and is_bool(value):
+        fvalue = to_bool(value)
 
-    if fvalue:
+    if fvalue is not None:
         if GRY_HOST:
             send_gry ( name, fvalue )
         else:
