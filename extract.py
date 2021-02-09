@@ -1,30 +1,15 @@
 #!/usr/bin/python3
+# -*- encoding: utf-8 -*-
 
 import socket
 import sys
+from typing import Dict, Tuple, Optional
+import configparser
+from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
 
-if len(sys.argv) < 3:
-    print('Usage:')
-    print('\t%s [options] <USERNAME> <PASSWORD>' % (sys.argv[0]))
-    print('Options:')
-    print('\t--gry <HOSTNAME>\t\tSend a UDP packet with the data to the given Gry host')
-    sys.exit(-1)
-
-GRY_HOST = None
-GRY_UDP_PORT = 8124
-
-argv = list(sys.argv)
-if '--gry' in argv:
-    gryindex = argv.index('--gry')
-    GRY_HOST = argv[gryindex + 1]
-    del argv[gryindex]
-    del argv[gryindex]
-
-USERNAME = argv[1]
-PASSWORD = argv[2]
 
 ALLOWED_UNITS = ['%', '°C', 'ºC', 'bar', 'Hz', 'h']
 
@@ -36,6 +21,15 @@ def send_gry(source_name, value):
     sock.sendto(message.encode('utf-8'), (GRY_HOST, GRY_UDP_PORT))
     sock.close()
 
+
+def get_credentials() -> Tuple[Optional[str], Optional[str]]:
+    secrets = Path.cwd() / '.secrets'
+    if secrets.exists():
+        parser = configparser.ConfigParser()
+        parser.read ( str(secrets) )
+        return parser.get('nibe', 'user'), parser.get('nibe', 'pass')
+    else:
+        return None, None
 
 def is_float(txt):
     try:
@@ -59,39 +53,60 @@ def to_bool(txt):
         return 0
 
 
-items = {}
-with requests.Session() as s:
-    s.get('https://www.nibeuplink.com/Welcome')
-    s.post('https://www.nibeuplink.com/Login', data={'Email': USERNAME, 'Password': PASSWORD})
-    s.get('https://www.nibeuplink.com/Language/en-GB')
-    for nibeIndex in range(2):
-        r = s.get('https://www.nibeuplink.com/System/43106/Status/ServiceInfo/{0}'.format(nibeIndex))
-        open('test.html', 'w', encoding='utf-8').write(r.text)
+def get_items(username: str, password: str) -> Dict[str, Tuple[str, float]]:
+    items = {}
+    with requests.Session() as s:
+        s.get('https://www.nibeuplink.com/Welcome')
+        s.post('https://www.nibeuplink.com/Login', data={'Email': username, 'Password': password})
+        s.get('https://www.nibeuplink.com/Language/en-GB')
+        for nibeIndex in range(2):
+            r = s.get('https://www.nibeuplink.com/System/43106/Status/ServiceInfo/{0}'.format(nibeIndex))
+            open('test.html', 'w', encoding='utf-8').write(r.text)
 
-        soup = BeautifulSoup(r.text, 'html.parser')
+            soup = BeautifulSoup(r.text, 'html.parser')
 
-        for table in soup.find_all('table'):
-            for tr in table.find_all('tr'):
-                tds = tr.find_all('td')
-                if len(tds) == 2:
-                    name = next(tds[0].stripped_strings)
-                    value = tds[1].span.text
-                    if name not in items:
-                        items[name] = value
+            for table in soup.find_all('table'):
+                for tr in table.find_all('tr'):
+                    tds = tr.find_all('td')
+                    if len(tds) == 2:
+                        name = next(tds[0].stripped_strings)
+                        value = tds[1].span.text
+                        if name not in items:
+                            fvalue = None
+                            for unit in ALLOWED_UNITS:
+                                if value.endswith(unit):
+                                    fvalue = float(value[:-(len(unit))])
+                                if fvalue is None and is_float(value):
+                                    fvalue = float(value)
+                                if fvalue is None and is_bool(value):
+                                    fvalue = to_bool(value)
+                            items[name] = (value, fvalue)
+    return items
 
-for key, value in items.items():
-    name = 'NIBE.' + key.replace(' ', '_').replace('.', '')
-    fvalue = None
-    for unit in ALLOWED_UNITS:
-        if value.endswith(unit):
-            fvalue = float(value[:-(len(unit))])
-    if fvalue is None and is_float(value):
-        fvalue = float(value)
-    if fvalue is None and is_bool(value):
-        fvalue = to_bool(value)
+if __name__ == '__main__':
+    if '--help' in sys.argv:
+        print('Usage:')
+        print('\t%s [options]' % (sys.argv[0]))
+        print('Options:')
+        print('\t--gry <HOSTNAME>\t\tSend a UDP packet with the data to the given Gry host')
+        sys.exit(-1)
 
-    if fvalue is not None:
-        if GRY_HOST:
-            send_gry(name, fvalue)
-        else:
-            print(name, fvalue)
+    GRY_HOST = None
+    GRY_UDP_PORT = 8124
+
+    argv = list(sys.argv)
+    if '--gry' in argv:
+        gryindex = argv.index('--gry')
+        GRY_HOST = argv[gryindex + 1]
+        del argv[gryindex]
+        del argv[gryindex]
+
+    username, password = get_credentials()
+    for key, (value, fvalue) in get_items(username, password).items():
+        name = 'NIBE.' + key.replace(' ', '_').replace('.', '')
+
+        if fvalue is not None:
+            if GRY_HOST:
+                send_gry(name, fvalue)
+            else:
+                print(name, fvalue)
