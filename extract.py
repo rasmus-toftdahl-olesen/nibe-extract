@@ -1,15 +1,16 @@
 #!/usr/bin/python3
 
+import socket
 import sys
+
 import requests
 from bs4 import BeautifulSoup
-import socket
 
 if len(sys.argv) < 3:
-    print ( 'Usage:' )
-    print ( '\t%s [options] <USERNAME> <PASSWORD>' % (sys.argv[0]) )
-    print ( 'Options:' )
-    print ( '\t--gry <HOSTNAME>\t\tSend a UDP packet with the data to the given Gry host' )
+    print('Usage:')
+    print('\t%s [options] <USERNAME> <PASSWORD>' % (sys.argv[0]))
+    print('Options:')
+    print('\t--gry <HOSTNAME>\t\tSend a UDP packet with the data to the given Gry host')
     sys.exit(-1)
 
 GRY_HOST = None
@@ -27,12 +28,14 @@ PASSWORD = argv[2]
 
 ALLOWED_UNITS = ['%', '°C', 'ºC', 'bar', 'Hz', 'h']
 
-def send_gry ( source_name, value ):
+
+def send_gry(source_name, value):
     message = '%s %s' % (source_name, value)
-    #print ( message )
+    # print ( message )
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(message.encode('utf-8'), (GRY_HOST, GRY_UDP_PORT))
     sock.close()
+
 
 def is_float(txt):
     try:
@@ -41,11 +44,13 @@ def is_float(txt):
     except ValueError:
         return False
 
+
 def is_bool(txt):
     if txt.strip().lower() in ['no', 'yes']:
         return True
     else:
         return False
+
 
 def to_bool(txt):
     if txt.strip().lower() == 'yes':
@@ -53,14 +58,15 @@ def to_bool(txt):
     else:
         return 0
 
+
 items = {}
 with requests.Session() as s:
-    s.get ( 'https://www.nibeuplink.com/Welcome' )
-    s.post ( 'https://www.nibeuplink.com/Login', data = {'Email': USERNAME, 'Password': PASSWORD} )
-    s.get ( 'https://www.nibeuplink.com/Language/en-GB' )
+    s.get('https://www.nibeuplink.com/Welcome')
+    s.post('https://www.nibeuplink.com/Login', data={'Email': USERNAME, 'Password': PASSWORD})
+    s.get('https://www.nibeuplink.com/Language/en-GB')
     for nibeIndex in range(2):
-        r = s.get ( 'https://www.nibeuplink.com/System/43106/Status/ServiceInfo/{0}'.format(nibeIndex) )
-        open ( 'test.html', 'w' ).write( r.text )
+        r = s.get('https://www.nibeuplink.com/System/43106/Status/ServiceInfo/{0}'.format(nibeIndex))
+        open('test.html', 'w', encoding='utf-8').write(r.text)
 
         soup = BeautifulSoup(r.text, 'html.parser')
 
@@ -72,7 +78,6 @@ with requests.Session() as s:
                     value = tds[1].span.text
                     if name not in items:
                         items[name] = value
-
 
 for key, value in items.items():
     name = 'NIBE.' + key.replace(' ', '_').replace('.', '')
@@ -87,6 +92,6 @@ for key, value in items.items():
 
     if fvalue is not None:
         if GRY_HOST:
-            send_gry ( name, fvalue )
+            send_gry(name, fvalue)
         else:
-            print ( name, fvalue )
+            print(name, fvalue)
