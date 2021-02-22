@@ -10,7 +10,6 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
-
 ALLOWED_UNITS = ['%', '°C', 'ºC', 'bar', 'Hz', 'h']
 
 
@@ -22,14 +21,31 @@ def send_gry(source_name, value):
     sock.close()
 
 
-def get_credentials() -> Tuple[Optional[str], Optional[str]]:
+def get_secrets() -> Optional[configparser.ConfigParser]:
     secrets = Path.cwd() / '.secrets'
     if secrets.exists():
         parser = configparser.ConfigParser()
-        parser.read ( str(secrets) )
-        return parser.get('nibe', 'user'), parser.get('nibe', 'pass')
+        parser.read(str(secrets))
+        return parser
+    else:
+        return None
+
+
+def get_credentials() -> Tuple[Optional[str], Optional[str]]:
+    secrets = get_secrets()
+    if secrets:
+        return secrets.get('nibe', 'user'), secrets.get('nibe', 'pass')
     else:
         return None, None
+
+
+def get_grafana_credentials() -> Tuple[Optional[str], Optional[str]]:
+    secrets = get_secrets()
+    if secrets:
+        return secrets.get('grafana', 'endpoint'), secrets.get('grafana', 'api-key')
+    else:
+        return None, None
+
 
 def is_float(txt):
     try:
@@ -82,6 +98,7 @@ def get_items(username: str, password: str) -> Dict[str, Tuple[str, float]]:
                                     fvalue = to_bool(value)
                             items[name] = (value, fvalue)
     return items
+
 
 if __name__ == '__main__':
     if '--help' in sys.argv:
