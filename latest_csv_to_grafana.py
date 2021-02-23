@@ -26,7 +26,7 @@ if len(data) == 0:
     print(f'No data found in {data_dir} - aborting!')
     sys.exit(-1)
 
-print(data)
+#print(data)
 
 headers = {'Authorization': f'Bearer {api_key}',
            'Content-Type': 'application/json'}
