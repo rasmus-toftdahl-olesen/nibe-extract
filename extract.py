@@ -84,7 +84,7 @@ def get_items(username: str, password: str) -> Dict[str, Tuple[str, float]]:
                     nibeIndex
                 )
             )
-            open("test.html", "w", encoding="utf-8").write(r.text)
+            # open("test.html", "w", encoding="utf-8").write(r.text)
 
             soup = BeautifulSoup(r.text, "html.parser")
 
